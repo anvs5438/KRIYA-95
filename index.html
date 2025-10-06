@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Quiz (Syam Prasad) — Samas (Custom selectors + Timer toggle)</title>
+<link href="https://fonts.googleapis.com/css?family=Orbitron:700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg1:#291c6e;
+  --bg2:#00167d;
+  --panel:#12132a;
+  --accent:#2debb0;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  background: radial-gradient(circle at 10% 10%, #06104a 0%, var(--bg1) 25%, var(--bg2) 70%);
+  font-family: "Orbitron", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  color:#dfe;
+  padding:28px 12px;
+}
+.container{
+  width:720px;
+  max-width:96%;
+  border-radius:18px;
+  overflow:hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(0,0,0,0.25) 100%);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.03);
+}
+.header{
+  background: linear-gradient(90deg,#9b36ff 20%, #53f0d6 100%);
+  padding:22px 18px;
+  text-align:center;
+  color:#fff;
+  font-size:28px;
+  font-weight:700;
+  letter-spacing:1px;
+}
+.controls{
+  display:flex;
+  gap:12px;
+  justify-content:center;
+  align-items:center;
+  padding:14px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.06));
+  flex-wrap:wrap;
+}
+.control-item{ display:flex; align-items:center; gap:8px; }
+.select, .small-btn, .num-input{
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #dff;
+  padding:8px 10px;
+  border-radius:8px;
+  font-weight:700;
+}
+.small-btn{
+  background: linear-gradient(90deg,#4ef1c7,#3abf8b);
+  border:none;
+  cursor:pointer;
+  padding:9px 14px;
+}
+.num-input{ width:84px; padding:8px; color:#000; background:#fff; border-radius:8px; font-weight:700; }
+
+/* panel & layout */
+.panel{
+  padding:18px;
+  position:relative;
+  /* use the panel CSS variable */
+  background: linear-gradient(180deg, rgba(5,8,30,0.6), var(--panel));
+}
+.top-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.qbox{
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius:14px; padding:18px; margin-top:12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  /* use accent var for border-left */
+  border-left:6px solid var(--accent, rgba(45,235,176,0.12));
+}
+.question { font-size:20px; color:#e6fff7; margin-bottom:14px; }
+
+/* big rounded answer buttons */
+.options { display:flex; flex-direction:column; gap:14px; }
+.answer-btn{
+  display:flex; align-items:center; justify-content:center;
+  padding:18px 22px; border-radius:40px;
+  background: linear-gradient(90deg,#2f00c8,#4b2bff);
+  color:#fff; font-size:18px; font-weight:800;
+  border: 2px solid rgba(255,255,255,0.06);
+  cursor:pointer; transition: transform 140ms, box-shadow 160ms, background 160ms;
+  box-shadow: 0 6px 24px rgba(30,20,60,0.35); user-select:none;
+}
+.answer-btn:hover{ transform: translateY(-4px); }
+.answer-btn:active{ transform: translateY(-1px); }
+.answer-btn[disabled]{ opacity:0.95; cursor:default; transform:none; }
+
+/* deep color flashes */
+@keyframes flashCorrect { 0%{transform:scale(1)} 40%{transform:scale(1.02)} 100%{transform:none} }
+@keyframes flashWrong { 0%{transform:scale(1)} 40%{transform:scale(1.02)} 100%{transform:none} }
+.answer-btn.correct { background: #FFD700; border-color:#FFD700; color:#000; animation: flashCorrect 420ms ease; box-shadow:0 8px 28px rgba(255,215,0,0.16); }
+.answer-btn.incorrect { background: #B22222; border-color:#8B0000; color:#fff; animation: flashWrong 420ms ease; box-shadow:0 8px 28px rgba(178,34,34,0.12); }
+
+/* progress + counter */
+.progress-bar{ height:8px; background: rgba(255,255,255,0.03); border-radius:8px; margin:18px 0; overflow:hidden; }
+.progress{ height:100%; width:0%; background: linear-gradient(90deg,#3a1bff,#5ec0ff); transition:width 200ms; }
+.counter{ text-align:center; color: #9fffe7; font-weight:700; padding:6px; margin-top:6px; }
+
+.footer{ padding:20px; height:56px; }
+
+/* responsive */
+@media (max-width:560px){
+  .answer-btn{ font-size:16px; padding:14px; border-radius:28px; }
+  .header{ font-size:20px; padding:16px; }
+  .num-input{ width:64px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">KRIYA95<span style="color:#B22222; font-weight:bold;">(శ్యాం ప్రసాద్ ఆకెళ్ళ)</span></div>
+
+  <div class="controls">
+    <div class="control-item">
+      <label style="font-weight:700">Choices:</label>
+      <select id="choiceSelect" class="select"></select>
+      <input id="choiceCustom" class="num-input" type="number" placeholder="Custom" style="display:none;" min="1" />
+    </div>
+
+    <div class="control-item">
+      <label style="font-weight:700">Questions:</label>
+      <select id="countSelect" class="select"></select>
+      <input id="countCustom" class="num-input" type="number" placeholder="Custom" style="display:none;" min="1" />
+    </div>
+
+    <div class="control-item">
+      <label style="font-weight:700">Time (s):</label>
+      <select id="timeSelect" class="select"></select>
+      <input id="timeCustom" class="num-input" type="number" placeholder="Seconds" style="display:none;" min="0" />
+    </div>
+
+    <div class="control-item">
+      <label style="font-weight:700">
+        <input id="timerEnable" type="checkbox" style="transform:scale(1.2); margin-right:8px;" />
+        Enable Timer
+      </label>
+    </div>
+
+    <!-- Theme dropdown -->
+    <div class="control-item">
+      <label style="font-weight:700">Theme:</label>
+      <select id="themeSelect" class="select"></select>
+    </div>
+
+    <div class="control-item">
+      <button id="startBtn" class="small-btn">Start / Restart</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="top-row">
+      <div style="width:72%">
+        <div class="qbox">
+          <div id="quiz"><!-- injected --></div>
+        </div>
+      </div>
+      <div style="width:26%; padding-left:12px; text-align:right;">
+        <div style="color:#9fffe7; font-weight:700; margin-top:8px;">Time Left: <span id="timer">--:--</span></div>
+        <div style="height:8px"></div>
+        <div class="progress-bar"><div id="progress" class="progress"></div></div>
+        <div class="counter" id="counter">Question 0 of 0</div>
+      </div>
+    </div>
+
+    <div class="footer"></div>
+  </div>
+</div>
+
+<script>
+/* ------------------------
+   Questions dataset
+   ------------------------ */
+const questions = [
+  {
+    "question": "सीमा ने किताब पढ़ी। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "सीमा",
+      "किताब",
+      "पढ़ी"
+    ],
+    "answer": "पढ़ी"
+  },
+  {
+    "question": "वह बाजार गया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वह",
+      "बाजार",
+      "गया"
+    ],
+    "answer": "गया"
+  },
+  {
+    "question": "राम ने खाना खाया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "राम",
+      "खाना",
+      "खाया"
+    ],
+    "answer": "खाया"
+  },
+  {
+    "question": "माँ ने रोटी बनाई। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "माँ",
+      "रोटी",
+      "बनाई"
+    ],
+    "answer": "बनाई"
+  },
+  {
+    "question": "बच्चे पार्क में खेले। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बच्चे",
+      "पार्क",
+      "खेले"
+    ],
+    "answer": "खेले"
+  },
+  {
+    "question": "उन्होंने गीत गाया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "उन्होंने",
+      "गीत",
+      "गाया"
+    ],
+    "answer": "गाया"
+  },
+  {
+    "question": "मुझसे उसने बात की। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "मुझसे",
+      "बात",
+      "की"
+    ],
+    "answer": "की"
+  },
+  {
+    "question": "राम ने पत्र लिखा। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "राम",
+      "पत्र",
+      "लिखा"
+    ],
+    "answer": "लिखा"
+  },
+  {
+    "question": "वह फिल्म देखी। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वह",
+      "फिल्म",
+      "देखी"
+    ],
+    "answer": "देखी"
+  },
+  {
+    "question": "मोहन ने उपहार दिया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "मोहन",
+      "उपहार",
+      "दिया"
+    ],
+    "answer": "दिया"
+  },
+  {
+    "question": "सीता ने किताब ली। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "सीता",
+      "किताब",
+      "ली"
+    ],
+    "answer": "ली"
+  },
+  {
+    "question": "बर्फ पिघली। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बर्फ",
+      "पिघली",
+      "नदी"
+    ],
+    "answer": "पिघली"
+  },
+  {
+    "question": "छात्र कक्षा में बैठे। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "छात्र",
+      "कक्षा",
+      "बैठे"
+    ],
+    "answer": "बैठे"
+  },
+  {
+    "question": "बिल्ली छत पर सोई। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बिल्ली",
+      "छत",
+      "सोई"
+    ],
+    "answer": "सोई"
+  },
+  {
+    "question": "दोस्त ने मदद की। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "दोस्त",
+      "मदद",
+      "की"
+    ],
+    "answer": "की"
+  },
+  {
+    "question": "वह तेज़ दौड़ा। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वह",
+      "तेज़",
+      "दौड़ा"
+    ],
+    "answer": "दौड़ा"
+  },
+  {
+    "question": "मैंने पानी पिया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "मैंने",
+      "पानी",
+      "पिया"
+    ],
+    "answer": "पिया"
+  },
+  {
+    "question": "अजय ने सवाल पूछा। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "अजय",
+      "सवाल",
+      "पूछा"
+    ],
+    "answer": "पूछा"
+  },
+  {
+    "question": "बाजार खुला। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बाजार",
+      "खुला",
+      "ताजी"
+    ],
+    "answer": "खुला"
+  },
+  {
+    "question": "वह कार चला रहा है। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वह",
+      "कार",
+      "चला रहा है"
+    ],
+    "answer": "चला रहा है"
+  },
+  {
+    "question": "मौसम बदल गया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "मौसम",
+      "बदल",
+      "गया"
+    ],
+    "answer": "बदल गया"
+  },
+  {
+    "question": "चिड़िया उड़ गई। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "चिड़िया",
+      "उड़",
+      "गई"
+    ],
+    "answer": "उड़ गई"
+  },
+  {
+    "question": "हमने फल खाए। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "हमने",
+      "फल",
+      "खाए"
+    ],
+    "answer": "खाए"
+  },
+  {
+    "question": "टीचर ने सवाल समझाया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "टीचर",
+      "सवाल",
+      "समझाया"
+    ],
+    "answer": "समझाया"
+  },
+  {
+    "question": "लड़का रोया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "लड़का",
+      "रोया",
+      "खेल"
+    ],
+    "answer": "रोया"
+  },
+  {
+    "question": "नदी बह रही है। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "नदी",
+      "बह",
+      "रही"
+    ],
+    "answer": "बह रही है"
+  },
+  {
+    "question": "वे मंदिर गए। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वे",
+      "मंदिर",
+      "गए"
+    ],
+    "answer": "गए"
+  },
+  {
+    "question": "उसने दरवाज़ा बंद किया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "उसने",
+      "दरवाज़ा",
+      "बंद किया"
+    ],
+    "answer": "बंद किया"
+  },
+  {
+    "question": "बच्ची हँसी। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बच्ची",
+      "खेल",
+      "हँसी"
+    ],
+    "answer": "हँसी"
+  },
+  {
+    "question": "कुत्ता भौंका। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "कुत्ता",
+      "भौंका",
+      "घर"
+    ],
+    "answer": "भौंका"
+  },
+  {
+    "question": "आम पेड़ पर लटका। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "आम",
+      "पेड़",
+      "लटका"
+    ],
+    "answer": "लटका"
+  },
+  {
+    "question": "शाला सुबह खुली। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "शाला",
+      "सुबह",
+      "खुली"
+    ],
+    "answer": "खुली"
+  },
+  {
+    "question": "बच्चों ने गीत गाए। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बच्चों",
+      "गीत",
+      "गाए"
+    ],
+    "answer": "गाए"
+  },
+  {
+    "question": "दुकान बंद हो गई। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "दुकान",
+      "बंद",
+      "गई"
+    ],
+    "answer": "बंद हो गई"
+  },
+  {
+    "question": "अंकल दौड़ रहे थे। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "अंकल",
+      "दौड़",
+      "रहे थे"
+    ],
+    "answer": "दौड़ रहे थे"
+  },
+  {
+    "question": "उसने मुझे आम दिया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "उसने",
+      "मुझे",
+      "दिया"
+    ],
+    "answer": "दिया"
+  },
+  {
+    "question": "पापा बाजार से लौटे। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "पापा",
+      "बाजार",
+      "लौटे"
+    ],
+    "answer": "लौटे"
+  },
+  {
+    "question": "हमने मिलकर काम किया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "हमने",
+      "मिलकर",
+      "किया"
+    ],
+    "answer": "किया"
+  },
+  {
+    "question": "लड़की ने फूल तोड़ा। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "लड़की",
+      "फूल",
+      "तोड़ा"
+    ],
+    "answer": "तोड़ा"
+  },
+  {
+    "question": "दादा जी सो रहे हैं। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "दादा जी",
+      "सो",
+      "रहे हैं"
+    ],
+    "answer": "सो रहे हैं"
+  },
+  {
+    "question": "बादल छा गए। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बादल",
+      "छा",
+      "गए"
+    ],
+    "answer": "छा गए"
+  },
+  {
+    "question": "छात्रों ने प्रश्न हल किए। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "छात्रों",
+      "प्रश्न",
+      "हल किए"
+    ],
+    "answer": "हल किए"
+  },
+  {
+    "question": "स्कूल में घंटी बजी। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "स्कूल",
+      "घंटी",
+      "बजी"
+    ],
+    "answer": "बजी"
+  },
+  {
+    "question": "बच्चे सो गए। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बच्चे",
+      "रात",
+      "सो गए"
+    ],
+    "answer": "सो गए"
+  },
+  {
+    "question": "वह शीघ्र आया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वह",
+      "शीघ्र",
+      "आया"
+    ],
+    "answer": "आया"
+  },
+  {
+    "question": "माँ ने कपड़े धोए। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "माँ",
+      "कपड़े",
+      "धोए"
+    ],
+    "answer": "धोए"
+  },
+  {
+    "question": "उसने साइकिल खरीदी। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "उसने",
+      "साइकिल",
+      "खरीदी"
+    ],
+    "answer": "खरीदी"
+  },
+  {
+    "question": "हम पार्क में बैठे थे। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "हम",
+      "पार्क",
+      "बैटे थे"
+    ],
+    "answer": "बैठे थे"
+  },
+  {
+    "question": "किसी ने दरवाज़ा खटखटाया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "किसी",
+      "दरवाज़ा",
+      "खटखटाया"
+    ],
+    "answer": "खटखटाया"
+  },
+  {
+    "question": "मछली पानी में तैरती है। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "मछली",
+      "पानी",
+      "तैरती है"
+    ],
+    "answer": "तैरती है"
+  },
+  {
+    "question": "वह अपनी स्कूटर चला रही थी। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वह",
+      "स्कूटर",
+      "चला रही थी"
+    ],
+    "answer": "चला रही थी"
+  },
+  {
+    "question": "हमने नई फिल्म देखी। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "हमने",
+      "नई",
+      "देखी"
+    ],
+    "answer": "देखी"
+  },
+  {
+    "question": "लड़के ने गेंद पकड़ी। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "लड़के",
+      "गेंद",
+      "पकड़ी"
+    ],
+    "answer": "पकड़ी"
+  },
+  {
+    "question": "बगीचे में फूल खिले। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बगीचे",
+      "फूल",
+      "खिले"
+    ],
+    "answer": "खिले"
+  },
+  {
+    "question": "मछुआरे ने जाल फेंका। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "मछुआरे",
+      "जाल",
+      "फेंका"
+    ],
+    "answer": "फेंका"
+  },
+  {
+    "question": "उन्होंने योजना बनाई। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "उन्होंने",
+      "योजना",
+      "बनाई"
+    ],
+    "answer": "बनाई"
+  },
+  {
+    "question": "वह अपने दोस्त से मिला। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वह",
+      "दोस्त",
+      "मिला"
+    ],
+    "answer": "मिला"
+  },
+  {
+    "question": "घड़ी समय बता रही है। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "घड़ी",
+      "समय",
+      "बता रही है"
+    ],
+    "answer": "बता रही है"
+  },
+  {
+    "question": "मैंने सब्ज़ी खरीदी। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "मैंने",
+      "सब्ज़ी",
+      "खरीदी"
+    ],
+    "answer": "खरीदी"
+  },
+  {
+    "question": "कुत्ते ने हड्डी चबाई। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "कुत्ते",
+      "हड्डी",
+      "चबाई"
+    ],
+    "answer": "चबाई"
+  },
+  {
+    "question": "छात्रों ने अच्छी तैयारी की। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "छात्रों",
+      "अच्छी",
+      "तैयारी की"
+    ],
+    "answer": "तैयारी की"
+  },
+  {
+    "question": "बागवान ने पेड़ लगाया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बागवान",
+      "पेड़",
+      "लगाया"
+    ],
+    "answer": "लगाया"
+  },
+  {
+    "question": "वह रोज़ सुबह दौड़ता है। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वह",
+      "रोज़",
+      "दौड़ता है"
+    ],
+    "answer": "दौड़ता है"
+  },
+  {
+    "question": "माँ ने बच्चे को चूमा। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "माँ",
+      "बच्चे",
+      "चूमा"
+    ],
+    "answer": "चूमा"
+  },
+  {
+    "question": "हमने नया घर देखा। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "हमने",
+      "नया",
+      "देखा"
+    ],
+    "answer": "देखा"
+  },
+  {
+    "question": "पेड़ के पत्ते झर गए। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "पेड़",
+      "पत्ते",
+      "झर गए"
+    ],
+    "answer": "झर गए"
+  },
+  {
+    "question": "उसने प्रश्न का उत्तर दिया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "उसने",
+      "प्रश्न",
+      "दिया"
+    ],
+    "answer": "दिया"
+  },
+  {
+    "question": "बच्ची नाच रही है। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बच्ची",
+      "नाच",
+      "रही है"
+    ],
+    "answer": "नाच रही है"
+  },
+  {
+    "question": "वे ट्रेन पकड़ गए। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वे",
+      "ट्रेन",
+      "पकड़ गए"
+    ],
+    "answer": "पकड़ गए"
+  },
+  {
+    "question": "हमने मिठाई खाई। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "हमने",
+      "मिठाई",
+      "खाई"
+    ],
+    "answer": "खाई"
+  },
+  {
+    "question": "उसने दरवाज़ा खोल दिया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "उसने",
+      "दरवाज़ा",
+      "खोल दिया"
+    ],
+    "answer": "खोल दिया"
+  },
+  {
+    "question": "चोर भाग गया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "चोर",
+      "भाग",
+      "गया"
+    ],
+    "answer": "भाग गया"
+  },
+  {
+    "question": "उड़ान समय पर पहुँची। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "उड़ान",
+      "समय",
+      "पहुँची"
+    ],
+    "answer": "पहुँची"
+  },
+  {
+    "question": "मास्टर ने कक्षा शुरू की। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "मास्टर",
+      "कक्षा",
+      "शुरू की"
+    ],
+    "answer": "शुरू की"
+  },
+  {
+    "question": "वह किताबें समेट रहा था। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वह",
+      "किताबें",
+      "समेट रहा था"
+    ],
+    "answer": "समेट रहा था"
+  },
+  {
+    "question": "मैंने फूलों में पानी डाला। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "मैंने",
+      "फूलों",
+      "डाला"
+    ],
+    "answer": "डाला"
+  },
+  {
+    "question": "उन्होंने नई कार खरीदी। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "उन्होंने",
+      "नई",
+      "खरीदी"
+    ],
+    "answer": "खरीदी"
+  },
+  {
+    "question": "बच्चे स्कूल जा रहे हैं। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बच्चे",
+      "स्कूल",
+      "जा रहे हैं"
+    ],
+    "answer": "जा रहे हैं"
+  },
+  {
+    "question": "वह समस्या को समझ गया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वह",
+      "समस्या",
+      "समझ गया"
+    ],
+    "answer": "समझ गया"
+  },
+  {
+    "question": "मछली ने छलांग लगाई। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "मछली",
+      "छलांग",
+      "लगाई"
+    ],
+    "answer": "लगाई"
+  },
+  {
+    "question": "हम सबने मिलकर काम किया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "हम सबने",
+      "मिलकर",
+      "किया"
+    ],
+    "answer": "किया"
+  },
+  {
+    "question": "बच्चों ने किताबें पढ़ीं। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बच्चों",
+      "किताबें",
+      "पढ़ीं"
+    ],
+    "answer": "पढ़ीं"
+  },
+  {
+    "question": "तुमने सही उत्तर बताया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "तुमने",
+      "सही",
+      "बताया"
+    ],
+    "answer": "बताया"
+  },
+  {
+    "question": "बवंडर तेज़ चला। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बवंडर",
+      "तेज़",
+      "चला"
+    ],
+    "answer": "चला"
+  },
+  {
+    "question": "वह वहाँ रुका। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वह",
+      "वहाँ",
+      "रुका"
+    ],
+    "answer": "रुका"
+  },
+  {
+    "question": "मेरा दोस्त हँсат्ता है। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "मेरा",
+      "दोस्त",
+      "हँसता है"
+    ],
+    "answer": "हँसता है"
+  },
+  {
+    "question": "गर्मी बढ़ गई। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "गर्मी",
+      "बढ़",
+      "गई"
+    ],
+    "answer": "बढ़ गई"
+  },
+  {
+    "question": "वह जल्दी सो गया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वह",
+      "जल्दी",
+      "सो गया"
+    ],
+    "answer": "सो गया"
+  },
+  {
+    "question": "छोटी बच्ची हँसी। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "छोटी",
+      "बच्ची",
+      "हँसी"
+    ],
+    "answer": "हँसी"
+  },
+  {
+    "question": "हमने सफर शुरू किया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "हमने",
+      "सफर",
+      "शुरू किया"
+    ],
+    "answer": "शुरू किया"
+  },
+  {
+    "question": "उसने तस्वीर खींची। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "उसने",
+      "तस्वीर",
+      "खींची"
+    ],
+    "answer": "खींची"
+  },
+  {
+    "question": "वह दुकान पर खड़ा था। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "वह",
+      "दुकान",
+      "खड़ा था"
+    ],
+    "answer": "खड़ा था"
+  },
+  {
+    "question": "उन्होंने मिलकर गीत गाया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "उन्होंने",
+      "मिलकर",
+      "गाया"
+    ],
+    "answer": "गाया"
+  },
+  {
+    "question": "बच्चा खेल से थक गया। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "बच्चा",
+      "खेल",
+      "थक गया"
+    ],
+    "answer": "थक गया"
+  },
+  {
+    "question": "हमने शाम को चाय पी। (वाक्य में क्रिया शब्द विकल्पों में से पहचान कर लिखिए।)",
+    "options": [
+      "हमने",
+      "शाम",
+      "पी"
+    ],
+    "answer": "पी"
+  }
+  ];
+
+/* ------------------------
+   UI refs & defaults
+   ------------------------ */
+const choiceSelect = document.getElementById('choiceSelect');
+const countSelect = document.getElementById('countSelect');
+const timeSelect = document.getElementById('timeSelect');
+const choiceCustom = document.getElementById('choiceCustom');
+const countCustom = document.getElementById('countCustom');
+const timeCustom = document.getElementById('timeCustom');
+const timerEnable = document.getElementById('timerEnable');
+const startBtn = document.getElementById('startBtn');
+const quizDiv = document.getElementById('quiz');
+const progressBar = document.getElementById('progress');
+const counterEl = document.getElementById('counter');
+const timerEl = document.getElementById('timer');
+
+const SETTINGS_KEY = 'samas_custom_settings_with_timer_v1';
+const defaults = { choices: 4, count: Math.min(24, questions.length), time: 180, timerEnabled: true };
+
+/* fill select options */
+[3,4,5,6,'Custom'].forEach(v => {
+  const o = document.createElement('option'); o.value = v; o.textContent = v; choiceSelect.appendChild(o);
+});
+[10,24,50,75,'All','Custom'].forEach(v => {
+  const o = document.createElement('option'); o.value = v; o.textContent = v; countSelect.appendChild(o);
+});
+[0,60,120,180,300,600,'Custom'].forEach(v => {
+  const o = document.createElement('option'); o.value = v; o.textContent = v; timeSelect.appendChild(o);
+});
+
+/* load saved settings */
+let saved = localStorage.getItem(SETTINGS_KEY);
+let settings = saved ? JSON.parse(saved) : defaults;
+
+/* set UI from settings */
+function applySettingsToUI(){
+  if ([3,4,5,6].includes(settings.choices)) {
+    choiceSelect.value = settings.choices; choiceCustom.style.display = 'none';
+  } else { choiceSelect.value = 'Custom'; choiceCustom.style.display = ''; choiceCustom.value = settings.choices; }
+  if ([10,24,50,75].includes(settings.count)) {
+    countSelect.value = settings.count; countCustom.style.display = 'none';
+  } else if (settings.count === questions.length) {
+    countSelect.value = 'All'; countCustom.style.display = 'none';
+  } else { countSelect.value = 'Custom'; countCustom.style.display = ''; countCustom.value = settings.count; }
+  if ([0,60,120,180,300,600].includes(settings.time)) {
+    timeSelect.value = settings.time; timeCustom.style.display = 'none';
+  } else { timeSelect.value = 'Custom'; timeCustom.style.display = ''; timeCustom.value = settings.time; }
+  timerEnable.checked = !!settings.timerEnabled;
+}
+applySettingsToUI();
+
+/* events for selectors */
+let selectsDirty = false;
+choiceSelect.addEventListener('change', () => { selectsDirty = true; if (choiceSelect.value === 'Custom') choiceCustom.style.display=''; else choiceCustom.style.display='none'; });
+countSelect.addEventListener('change', () => { selectsDirty = true; if (countSelect.value === 'Custom') countCustom.style.display=''; else countCustom.style.display='none'; });
+timeSelect.addEventListener('change', () => { selectsDirty = true; if (timeSelect.value === 'Custom') timeCustom.style.display=''; else timeCustom.style.display='none'; });
+timerEnable.addEventListener('change', () => { selectsDirty = true; });
+
+/* helpers */
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+function sampleOptions(baseOptions, correct, n){ const pool=baseOptions.filter(x=>x!==correct); shuffle(pool); const chosen=pool.slice(0,n-1); chosen.push(correct); return shuffle(chosen); }
+
+/* quiz state */
+let currentSet=[], idx=0, userAnswers=[], timerInterval=null;
+let quizEnded = false; // prevent race conditions
+
+/* read UI values */
+function readUIValues(){
+  let choicesVal = (choiceSelect.value==='Custom') ? parseInt(choiceCustom.value,10)||defaults.choices : parseInt(choiceSelect.value,10);
+  let countVal;
+  if (countSelect.value==='Custom') countVal=parseInt(countCustom.value,10)||Math.min(24,questions.length);
+  else if (countSelect.value==='All') countVal=questions.length;
+  else countVal=parseInt(countSelect.value,10);
+  let timeVal=(timeSelect.value==='Custom')?parseInt(timeCustom.value,10)||0:parseInt(timeSelect.value,10);
+  return { choices:Math.max(2,choicesVal), count:Math.min(Math.max(1,countVal),questions.length), time:Math.max(0,timeVal) };
+}
+
+/* timer */
+
+function startTimer(sec){ 
+  if (timerInterval) clearInterval(timerInterval); 
+  if (!sec || sec <= 0){ 
+    timerEl.textContent='--:--'; 
+    return;
+  } 
+  let remaining = sec; 
+  timerEl.textContent = formatTime(remaining); 
+
+  timerInterval = setInterval(() => { 
+    remaining--; 
+    if (remaining <= 0){ 
+      clearInterval(timerInterval); 
+      timerEl.textContent = '00:00'; 
+      // ⬇️ Force quiz to stop and show results immediately
+      quizEnded = true; // mark quiz ended before showing results
+      showResults();
+    } else { 
+      timerEl.textContent = formatTime(remaining); 
+    } 
+  }, 1000); 
+}
+function formatTime(s){ const m=Math.floor(s/60); const r=s%60; return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`; }
+
+/* start quiz */
+function startQuiz(){
+  const vals=readUIValues(); settings={choices:vals.choices,count:vals.count,time:vals.time,timerEnabled:!!timerEnable.checked}; localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings)); selectsDirty=false;
+  const pool=JSON.parse(JSON.stringify(questions)); shuffle(pool);
+  currentSet=pool.slice(0,Math.min(settings.count,pool.length)).map(q=>({question:q.question, options:sampleOptions(q.options,q.answer,Math.min(settings.choices,q.options.length)), answer:q.answer}));
+  idx=0; userAnswers=new Array(currentSet.length).fill(null);
+  quizEnded = false; // reset flag
+  if(settings.timerEnabled&&settings.time>0) startTimer(settings.time); else startTimer(0);
+  renderQuestion();
+}
+function renderQuestion(){ if(!currentSet.length){ quizDiv.innerHTML='<div style="padding:18px;color:#bfe">Press Start to begin</div>'; return;} const q=currentSet[idx]; quizDiv.innerHTML=''; const qText=document.createElement('div'); qText.className='question'; qText.textContent=`${idx+1}. ${q.question}`; quizDiv.appendChild(qText); const optsWrap=document.createElement('div'); optsWrap.className='options'; q.options.forEach(opt=>{ const btn=document.createElement('button'); btn.className='answer-btn'; btn.type='button'; btn.dataset.value=opt; btn.textContent=opt; btn.addEventListener('click',()=>handleAnswer(q,opt,btn)); optsWrap.appendChild(btn); }); quizDiv.appendChild(optsWrap); updateProgress();}
+function handleAnswer(qObj,chosen,chosenBtn){ const buttons=Array.from(quizDiv.querySelectorAll('.answer-btn')); buttons.forEach(b=>b.disabled=true); buttons.forEach(b=>{ if(b.dataset.value===qObj.answer) b.classList.add('correct'); if(b.dataset.value===chosen&&chosen!==qObj.answer) b.classList.add('incorrect'); }); userAnswers[idx]=chosen; setTimeout(()=>{ if(quizEnded) return; if(idx<currentSet.length-1){ idx++; renderQuestion(); } else showResults(); },450);}
+function updateProgress(){ const pct=Math.round(((idx)/(Math.max(1,currentSet.length-1)))*100); progressBar.style.width=`${pct}%`; counterEl.textContent=`Question ${idx+1} of ${currentSet.length}`;}
+
+function showResults(){ 
+  quizEnded = true;
+  if(timerInterval) clearInterval(timerInterval); 
+  quizDiv.innerHTML=''; 
+  const out=document.createElement('div'); 
+  out.style.padding='12px'; 
+  out.innerHTML='<h3 style="color:#fff;margin-top:0">Results</h3>'; 
+  let correct=0; 
+  currentSet.forEach((q,i)=>{ 
+    const ua=userAnswers[i]; 
+    const ok=ua===q.answer; 
+    if(ok) correct++; 
+    const row=document.createElement('div'); 
+    row.style.marginBottom='10px'; 
+    row.innerHTML=`<strong style="color:#fff">${i+1}. ${q.question}</strong><div style="margin-top:6px;color:${ok?'#ffd700':'#ff9aa2'}">Your: ${ua?ua:'—'}</div>${ok?'':`<div style="color:#ffd700">Ans: ${q.answer}</div>`}`; 
+    out.appendChild(row); 
+  }); 
+  out.innerHTML+=`<div style="margin-top:12px;color:#dff"><strong>Score: ${correct} / ${currentSet.length}</strong></div>`; 
+  
+  // ⬇️ Add Retake button
+  const retakeBtn = document.createElement('button');
+  retakeBtn.textContent = "Retake Quiz";
+  retakeBtn.style.marginTop = "16px";
+  retakeBtn.className = "small-btn";
+  retakeBtn.addEventListener("click", startQuiz);
+  out.appendChild(retakeBtn);
+
+  quizDiv.appendChild(out); 
+  progressBar.style.width='100%'; 
+  counterEl.textContent=`Done — Score ${correct}/${currentSet.length}`; 
+}
+
+/* auto-start */
+window.addEventListener('load',()=>{ applySettingsToUI(); setTimeout(()=>{ if(!selectsDirty){ startQuiz(); } },120); });
+startBtn.addEventListener('click',startQuiz);
+
+/* ------------------------
+   Theme System
+   ------------------------ */
+const THEMES = {
+  "Neon Night": { "--bg1":"#291c6e","--bg2":"#00167d","--panel":"#12132a","--accent":"#2debb0" },
+  "Sunset Glow": { "--bg1":"#ff7e5f","--bg2":"#feb47b","--panel":"#2e1d12","--accent":"#ffd166" },
+  "Ocean Blue": { "--bg1":"#006994","--bg2":"#003459","--panel":"#012a36","--accent":"#00e5ff" },
+  "Forest Green": { "--bg1":"#1b4332","--bg2":"#081c15","--panel":"#0f5132","--accent":"#95d5b2" },
+  "Royal Purple": { "--bg1":"#3c096c","--bg2":"#240046","--panel":"#10002b","--accent":"#9d4edd" },
+  "Golden Desert": { "--bg1":"#d97706","--bg2":"#92400e","--panel":"#78350f","--accent":"#fcd34d" },
+  "Candy Pink": { "--bg1":"#ff80ab","--bg2":"#ec407a","--panel":"#880e4f","--accent":"#f8bbd0" },
+  "Sky Cyan": { "--bg1":"#00c6ff","--bg2":"#0072ff","--panel":"#012a4a","--accent":"#90e0ef" },
+  "Elegant Gray": { "--bg1":"#2c2c2c","--bg2":"#1a1a1a","--panel":"#111111","--accent":"#bfbfbf" }
+};
+
+const themeSelect = document.getElementById('themeSelect');
+const THEME_KEY = "quiz_theme_choice";
+
+// populate theme dropdown
+Object.keys(THEMES).forEach(name => {
+  const opt = document.createElement("option");
+  opt.value = name;
+  opt.textContent = name;
+  themeSelect.appendChild(opt);
+});
+
+// apply theme (writes CSS variables)
+function applyTheme(name){
+  const theme = THEMES[name] || THEMES["Neon Night"];
+  Object.keys(theme).forEach(key => {
+    document.documentElement.style.setProperty(key, theme[key]);
+  });
+
+    // Update body background gradient which uses --bg1/--bg2
+  document.body.style.background = `radial-gradient(circle at 10% 10%, #06104a 0%, var(--bg1) 25%, var(--bg2) 70%)`;
+
+  localStorage.setItem(THEME_KEY, name);
+}
+
+// load saved theme
+let savedTheme = localStorage.getItem(THEME_KEY) || "Neon Night";
+if (!THEMES[savedTheme]) savedTheme = "Neon Night";
+themeSelect.value = savedTheme;
+applyTheme(savedTheme);
+
+// on change
+themeSelect.addEventListener("change", () => {
+  applyTheme(themeSelect.value);
+});
+</script>
+</body>
+</html>
